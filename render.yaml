@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: excel-automation
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: 5050
+      - key: EXCEL_AUTOMATION_SECRET
+        generateValue: true
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: GUNICORN_WORKERS
+        value: "1"
+      - key: GUNICORN_THREADS
+        value: "4"
+      - key: GUNICORN_TIMEOUT
+        value: "120"
+      - key: LOG_LEVEL
+        value: info
+

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · Excel Control Room</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <main class="shell login-shell">
+    <section class="panel login-panel" aria-labelledby="login-title">
+      <p class="eyebrow">EXCEL CONTROL ROOM</p>
+      <h1 id="login-title">Sign in</h1>
+      <p class="muted">Sign in with the account your administrator gave you to upload workbooks and invoices, review documents and download reports.</p>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="messages" aria-live="polite">
+            {% for category, message in messages %}<div class="message {{ category }}" {% if category == 'error' %}role="alert"{% endif %}>{{ message }}</div>{% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      {% if has_accounts %}
+        <form class="login-form" action="{{ url_for('login') }}" method="post">
+          <label for="username">Username</label>
+          <input id="username" name="username" value="{{ username }}" autocomplete="username" autocapitalize="none" spellcheck="false" required {% if not username %}autofocus{% endif %}>
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required {% if username %}autofocus{% endif %}>
+          <input type="hidden" name="next" value="{{ next }}">
+          <input type="hidden" name="csrf" value="{{ review_csrf_token() }}">
+          <button class="button primary" type="submit">Sign in <span>→</span></button>
+        </form>
+      {% else %}
+        <div class="master-state empty">
+          <div class="state-icon">!</div>
+          <div><strong>No accounts have been set up yet</strong><small>An administrator creates them on the server with <code>flask --app app users add &lt;username&gt;</code></small></div>
+        </div>
+      {% endif %}
+    </section>
+  </main>
+</body>
+</html>

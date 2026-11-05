@@ -23,6 +23,8 @@ This guide explains how to deploy the Excel Automation System using Docker and D
    ```
    Paste the generated string into your `.env` file.
 
+   To turn on the website assistant (the **Ask a question** panel), also set `ANTHROPIC_API_KEY` in `.env`. Without it the panel stays hidden. `ASSISTANT_MODEL` and `ASSISTANT_EFFORT` are optional; see the Website assistant section of the README.
+
 2. **Build and Start the Container**
    ```bash
    docker compose up -d --build
@@ -34,12 +36,19 @@ This guide explains how to deploy the Excel Automation System using Docker and D
    ```
    You should see `excel_automation_app` with status `Up (healthy)`.
 
-4. **Access the Web Dashboard**
+4. **Create the Sign-in Accounts**
+   Nobody can use the dashboard until an account exists. Create one per person (you will be asked for a password of at least 8 characters):
+   ```bash
+   docker compose exec excel-automation flask --app app users add alice --name "Alice Rao"
+   ```
+   Manage accounts later with `users list`, `users password <username>` and `users remove <username>` in the same way. Accounts are kept in `./config/users.db` on the host, so they survive rebuilds.
+
+5. **Access the Web Dashboard**
    Open your browser and navigate to:
    ```
    http://localhost:5050
    ```
-   *(Or `http://<your-server-ip>:5050` if deployed on a remote server/VM)*
+   *(Or `http://<your-server-ip>:5050` if deployed on a remote server/VM)* and sign in.
 
 ---
 
@@ -49,7 +58,7 @@ All important data is persisted on your host machine via volume mounts:
 
 | Host Directory | Container Path | Purpose |
 | :--- | :--- | :--- |
-| `./config/` | `/app/config` | Configuration files (`config.json`, `review_config.json`, `review_schema.json`) |
+| `./config/` | `/app/config` | Configuration files (`config.json`, `review_config.json`, `review_schema.json`), sign-in accounts (`users.db`), and the website assistant's rules and knowledge base (`assistant/`) |
 | `./input/` | `/app/input` | Drop folder for monthly Excel files and `input/invoices/` for PDFs |
 | `./processed/` | `/app/processed` | Successfully processed files |
 | `./errors/` | `/app/errors` | Files that failed validation |

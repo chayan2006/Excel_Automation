@@ -2,17 +2,21 @@ import os
 import secrets
 import shutil
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-from flask import Flask, abort, flash, redirect, render_template, request, send_file, url_for
+import click
+from flask import Flask, abort, flash, g, redirect, render_template, request, send_file, session, url_for
+from flask.cli import AppGroup
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from openpyxl import load_workbook
 from werkzeug.utils import secure_filename
 
+from assistant import assistant_bp
 from review import check_csrf, review_bp
+from src.auth import UserStore
 from src.file_manager import FileManager
 from src.invoice_extractor import process_invoices
 from src.processor import AutomationRunner
@@ -30,8 +34,13 @@ INVOICE_EXTENSION = ".pdf"
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("EXCEL_AUTOMATION_SECRET") or secrets.token_hex(32)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
+# A sign-in lasts until 12 hours without activity; Lax cookies are not sent with form posts from other websites.
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=12)
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.register_blueprint(review_bp)
+app.register_blueprint(assistant_bp)
 _workbook_lock = threading.RLock()
+PUBLIC_ENDPOINTS = {"login", "healthz", "static"}
 
 
 def serialized_workbooks(view):
@@ -69,6 +78,119 @@ def sync_master_to_data(master_path: Path | None = None) -> None:
             shutil.copy2(target, data_dir / "Master.xlsx")
         except Exception:
             app.logger.warning("Could not sync Master.xlsx to data directory", exc_info=True)
+
+
+# ----- accounts -----
+
+def user_store() -> UserStore:
+    return UserStore(PROJECT_ROOT / "config" / "users.db")
+
+
+def signed_in_user() -> dict | None:
+    """The account in this session, if it still exists and its password has not been changed since sign-in."""
+    if "user" not in session:
+        return None
+    user = user_store().get(session["user"])
+    if user and secrets.compare_digest(session.get("user_key", ""), user["session_key"]):
+        return user
+    return None
+
+
+def safe_next(target: str | None) -> str:
+    """Return to the page that asked for sign-in, but never to another website."""
+    if target and target.startswith("/") and not target.startswith("//") and "\\" not in target and target.isprintable():
+        return target
+    return url_for("dashboard")
+
+
+@app.before_request
+def require_sign_in():
+    """Every page, file and API call needs a signed-in account; only the sign-in page and health check are open."""
+    if request.endpoint in PUBLIC_ENDPOINTS:
+        return None
+    g.user = signed_in_user()
+    if g.user:
+        return None
+    if request.path.startswith(("/review/api/", "/assistant/")):
+        return {"error": "Your sign-in has expired. Reload the page and sign in again."}, 401
+    return redirect(url_for("login", next=request.full_path.rstrip("?") if request.method == "GET" else None))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    target = safe_next(request.values.get("next"))
+    if signed_in_user():
+        return redirect(target)
+    store = user_store()
+    username = request.form.get("username", "").strip()
+    if request.method == "POST":
+        check_csrf()
+        user = store.authenticate(username, request.form.get("password", ""))
+        if user:
+            session.clear()
+            session.permanent = True
+            session["user"], session["user_key"] = user["username"], user["session_key"]
+            return redirect(target)
+        app.logger.warning("Failed sign-in for %r from %s", username, request.remote_addr)
+        flash("That username and password do not match an account.", "error")
+    return render_template("login.html", next=request.values.get("next", ""), username=username,
+                           has_accounts=bool(store.list())), 401 if request.method == "POST" else 200
+
+
+@app.post("/logout")
+def logout():
+    check_csrf()
+    session.clear()
+    flash("You have signed out.", "success")
+    return redirect(url_for("login"))
+
+
+users_cli = AppGroup("users", help="Manage the accounts that can sign in to the dashboard.")
+app.cli.add_command(users_cli)
+
+
+@users_cli.command("add")
+@click.argument("username")
+@click.option("--name", help="Name shown on the dashboard and recorded in the review history. Defaults to the username.")
+@click.password_option()
+def add_user(username, name, password):
+    """Create an account."""
+    try:
+        user_store().add(username, password, name)
+    except ValueError as exc:
+        raise click.ClickException(str(exc))
+    click.echo(f"Added {username}. They can now sign in.")
+
+
+@users_cli.command("password")
+@click.argument("username")
+@click.password_option()
+def reset_password(username, password):
+    """Set a new password. The account is signed out everywhere."""
+    try:
+        user_store().set_password(username, password)
+    except ValueError as exc:
+        raise click.ClickException(str(exc))
+    click.echo(f"Changed the password for {username}.")
+
+
+@users_cli.command("remove")
+@click.argument("username")
+def remove_user(username):
+    """Delete an account. It is signed out at its next request."""
+    if not user_store().remove(username):
+        raise click.ClickException(f"There is no account named {username}.")
+    click.echo(f"Removed {username}.")
+
+
+@users_cli.command("list")
+def list_users():
+    """Show every account and when it last signed in."""
+    users = user_store().list()
+    if not users:
+        click.echo("No accounts yet. Add one with: flask --app app users add <username>")
+    for user in users:
+        click.echo(f"{user['username']:<24} {user['name']:<30} last sign-in: {user['last_login_at'] or 'never'}")
 
 
 @app.get("/healthz")

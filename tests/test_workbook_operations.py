@@ -16,7 +16,7 @@ from src.workbook_operations import (
     backup_path, file_digest, list_backups, preview_queue,
     restore_backup, restore_fingerprint, run_errors, run_history,
 )
-from test_regressions import CONFIG, workbook_bytes
+from test_regressions import CONFIG, sign_in, workbook_bytes
 
 
 class WorkbookOperationsTests(unittest.TestCase):
@@ -45,6 +45,7 @@ class WorkbookOperationsTests(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.client = web.app.test_client()
+        sign_in(self.client)
         self.client.get('/')
         with self.client.session_transaction() as session:
             self.csrf = session['review_csrf']

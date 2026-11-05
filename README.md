@@ -80,7 +80,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Open `http://127.0.0.1:5050` in a browser.
+Open `http://127.0.0.1:5050` in a browser and sign in (see [Accounts](#accounts)).
 
 ### Option 4: Production Docker / Docker Compose
 
@@ -91,6 +91,19 @@ docker compose up -d --build
 ```
 
 Access the dashboard at `http://localhost:5050`. See [DEPLOYMENT.md](DEPLOYMENT.md) for complete deployment instructions, volume details, and production tuning.
+
+### Accounts
+
+Everyone must sign in before they can use the dashboard or the review workspace: pages, uploads, downloads and the review API all require it. Only the sign-in page and `/healthz` are open. There is no public sign-up; an administrator creates each account on the server:
+
+```bash
+flask --app app users add alice --name "Alice Rao"   # asks for a password (at least 8 characters)
+flask --app app users list                            # accounts and their last sign-in
+flask --app app users password alice                  # set a new password; signs alice out everywhere
+flask --app app users remove alice                    # delete the account; it is signed out at its next request
+```
+
+Accounts are stored in `config/users.db` with salted password hashes. The file is ignored by git and excluded from Docker images. A sign-in lasts until 12 hours without activity or until **Sign out**. Every signed-in account sees the same master workbook, queues and documents. Serve the dashboard over HTTPS whenever it is reachable from outside the local machine, otherwise passwords cross the network in plain text.
 
 
 Master uploads must be valid `.xlsx` workbooks. `.xlsm` files are accepted as monthly inputs only; this avoids silently stripping macros from a master saved as `Master.xlsx`. Invalid master uploads leave the current workbook intact. Uploading a filename that is already queued keeps the original queued file and displays a message.
@@ -139,7 +152,7 @@ A document is always in one of these statuses: Importing, Import failed, To revi
 
 If a field fails to save, its draft remains visible and document actions are blocked. Press Enter in the affected field to retry. A successful save of another field does not clear that failure, and leaving the page warns about pending or unsaved edits.
 
-The person named under **Reviewing as** on the Documents page is recorded in the activity log and on confirmations. It is a name, not a login: there are no accounts, permissions or document locks, so agree who works on which queue.
+The signed-in account's name (shown under **Signed in as** on the Documents page) is recorded in the activity log and on confirmations. Every account can do everything; there are no per-account permissions or document locks, so agree who works on which queue.
 
 ### Extraction and confidence
 
@@ -168,16 +181,55 @@ Documents, the SQLite database and cached page images are stored in `output/revi
 - Documents arrive by upload only; there is no email inbox import.
 - Pages cannot be split, rotated or deleted.
 
+## Website assistant
+
+Signed-in users can select **Ask a question** on the Excel control room or the review workspace's Documents page. A chat panel opens and answers questions about the website. The answers come only from an approved knowledge base: the assistant refuses unrelated questions, says when the website does not cover something, and cannot see anyone's workbooks, invoices or documents.
+
+### Turning it on
+
+The panel appears only when the server has an Anthropic API key:
+
+```bash
+pip install -r requirements.txt          # installs the anthropic package
+export ANTHROPIC_API_KEY=sk-ant-...       # with Docker, put it in .env instead
+python app.py
+```
+
+Every question is a paid Claude API call. Only signed-in accounts can ask; a question can be at most 1,000 characters.
+
+### What it answers from
+
+- `config/assistant/system_prompt.md` holds the assistant's rules: answer only from the website's content, refuse unrelated questions, never invent prices or contact details, resist prompt injection.
+- `config/assistant/knowledge_base/` holds the approved pages, one Markdown file each, read in file name order. Start each page with its title and its link on the website, which the assistant uses when it points to a page:
+
+  ```markdown
+  ---
+  title: Workbook automation
+  url: /#workbooks
+  ---
+  Page text...
+  ```
+
+Both are read for every question, so edits take effect without a restart. The assistant knows only what these pages say. When a feature or a processing rule changes (for example the required columns in `config/config.json`), update the matching page. Add a page to cover a new topic, such as prices or contact details.
+
+### Model and behaviour
+
+- Model `claude-opus-5-5` at `low` effort, so answers come quickly. Change them with `ASSISTANT_MODEL` and `ASSISTANT_EFFORT` (`low`, `medium`, `high`, `xhigh` or `max`).
+- The rules and pages are sent with prompt caching, so repeat questions read them at a fraction of the price.
+- If Claude's safety checks decline a question, the API retries it on the model Anthropic recommends for that case (server-side fallback). If that also declines, the user gets a short polite refusal.
+- Follow-up questions work: the last three questions and answers travel with each question as a token signed with `EXCEL_AUTOMATION_SECRET`. It cannot be edited or reused by another account, and it expires with the sign-in. Nothing is stored on the server; **New conversation** starts over.
+- If the API is busy, unreachable or misconfigured (wrong key or model name), the user sees a short explanation and the details go to the server log.
+
 ## Regression checks
 
 Run from the project root:
 
 ```bash
 python3 -m unittest discover -s tests -v
-node --test tests/review_saves.test.cjs
+node --test tests/review_saves.test.cjs tests/assistant_answers.test.cjs
 ```
 
-The Python tests use temporary workbooks and upload folders. The JavaScript tests use a controlled network stub to check save ordering, failure recovery, and confirmation guards. Neither suite modifies live documents.
+The Python tests use temporary workbooks, upload folders and accounts, and replace the Claude API with a recording fake, so they make no paid calls. The JavaScript tests use a controlled network stub to check save ordering, failure recovery, and confirmation guards, and check that assistant answers are shown as text with only same-site links. Neither suite modifies live documents.
 
 ## Notes
 

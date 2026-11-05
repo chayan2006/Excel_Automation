@@ -12,7 +12,7 @@ from datetime import date, datetime
 from functools import wraps
 from pathlib import Path
 
-from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_file, session, url_for
+from flask import Blueprint, abort, current_app, flash, g, jsonify, redirect, render_template, request, send_file, session, url_for
 
 from src.review_export import EXPORT_NAME_PATTERN
 from src.review_schema import parse_number
@@ -62,7 +62,9 @@ def workspace() -> ReviewWorkspace:
 
 
 def reviewer() -> str:
-    return session.get("reviewer") or workspace().config.get("default_reviewer", "Reviewer")
+    """The signed-in account's name, recorded in the activity log and on confirmations."""
+    user = g.get("user")
+    return user["name"] if user else workspace().config.get("default_reviewer", "Reviewer")
 
 
 def csrf_token() -> str:
@@ -403,16 +405,6 @@ def bulk():
     if problems:
         flash(f"{len(problems)} document(s) skipped. {problems[0]}", "error")
     return back
-
-
-@review_bp.post("/reviewer")
-def set_reviewer():
-    check_csrf()
-    name = " ".join(request.form.get("name", "").split())[:60]
-    if name:
-        session["reviewer"] = name
-    target = request.form.get("next", "")
-    return redirect(target if target.startswith("/review") else url_for("review.documents"))
 
 
 # ----- files -----

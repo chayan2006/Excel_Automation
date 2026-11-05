@@ -34,11 +34,11 @@
     {% endfor %}
   </nav>
   <div class="dash-nav-foot">
-    <form class="dash-reviewer" method="post" action="{{ url_for('review.set_reviewer') }}">
-      <label for="reviewer-name">Reviewing as</label>
-      <input id="reviewer-name" name="name" value="{{ reviewer }}" maxlength="60" autocomplete="name">
-      <input type="hidden" name="next" value="{{ request.full_path }}">
+    <form class="dash-reviewer" method="post" action="{{ url_for('logout') }}">
+      <span class="dash-reviewer-label">Signed in as</span>
+      <span class="dash-reviewer-name">{{ reviewer }}</span>
       <input type="hidden" name="csrf" value="{{ review_csrf_token() }}">
+      <button type="submit">Sign out</button>
     </form>
     <a class="dash-back" href="{{ url_for('dashboard') }}">← Excel control room</a>
   </div>
@@ -202,6 +202,7 @@
 </main>
 
 <script type="application/json" id="dash-data">{{ {"queues": ws.queues, "labels": labels, "currentQueue": args.queue} | tojson }}</script>
+{% if assistant_enabled() %}{% include 'assistant/widget.html' %}{% endif %}
 {% endblock %}
 
 {% block scripts %}<script src="{{ url_for('static', filename='review-dashboard.js') }}"></script>{% endblock %}

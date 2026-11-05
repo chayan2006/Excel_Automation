@@ -15,6 +15,9 @@ services:
       - GUNICORN_WORKERS=${GUNICORN_WORKERS:-1}
       - GUNICORN_THREADS=${GUNICORN_THREADS:-4}
       - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-120}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ASSISTANT_MODEL=${ASSISTANT_MODEL:-claude-opus-5-5}
+      - ASSISTANT_EFFORT=${ASSISTANT_EFFORT:-low}
     volumes:
       # Persistent host directory mounts for data and configuration
       - ./config:/app/config

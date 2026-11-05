@@ -131,10 +131,6 @@
     uploadForm.submit();
   });
 
-  // The reviewer name is saved as soon as it changes.
-  const reviewerInput = document.getElementById("reviewer-name");
-  reviewerInput.addEventListener("change", () => reviewerInput.form.submit());
-
   // "/" jumps to search, like most list views.
   document.addEventListener("keydown", (event) => {
     if (event.key !== "/" || event.target.closest("input, textarea, select")) return;

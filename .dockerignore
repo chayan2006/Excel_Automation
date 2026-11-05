@@ -13,3 +13,4 @@ env/
 *.log
 tests/
 
+config/users.db

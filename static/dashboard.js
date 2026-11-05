@@ -24,7 +24,8 @@
         show();
       });
     });
-    document.querySelectorAll("form").forEach((form) => {
+    // Forms marked data-async are sent by their own script and never leave the page, so they are not locked here.
+    document.querySelectorAll("form:not([data-async])").forEach((form) => {
       form.addEventListener("submit", (event) => {
         if (form.dataset.busy) { event.preventDefault(); return; }
         form.dataset.busy = "true";

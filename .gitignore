@@ -17,3 +17,6 @@ env/
 # Temporary outputs & logs (keep directories tracked with .gitkeep if needed)
 *.log
 
+
+# Sign-in accounts (password hashes); created with `flask --app app users add`
+config/users.db

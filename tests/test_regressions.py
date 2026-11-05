@@ -23,6 +23,14 @@ CONFIG = {
 }
 
 
+def sign_in(client, username='tester', name='Test Reviewer'):
+    """Create an account under the patched project root and sign the test client in as it."""
+    user = web.user_store().add(username, 'correct horse battery', name)
+    with client.session_transaction() as session:
+        session['user'], session['user_key'] = user['username'], user['session_key']
+    return user
+
+
 def workbook_bytes(rows, title='Monthly Data'):
     workbook = Workbook()
     sheet = workbook.active
@@ -159,6 +167,7 @@ class DashboardTests(unittest.TestCase):
         self.patch.start()
         self.addCleanup(self.patch.stop)
         self.client = web.app.test_client()
+        sign_in(self.client)
 
     def upload(self, route, field, content, name):
         return self.client.post(route, data={field: (io.BytesIO(content), name)}, follow_redirects=True)

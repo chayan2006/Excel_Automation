@@ -1,0 +1,26 @@
+{# The website assistant's chat panel; include it at the end of a page's body when assistant_enabled(). #}
+<link rel="stylesheet" href="{{ url_for('static', filename='assistant.css') }}">
+<div class="assistant" data-ask-url="{{ url_for('assistant.ask') }}">
+  <section class="assistant-panel" id="assistant-panel" aria-labelledby="assistant-title" hidden>
+    <header class="assistant-head">
+      <div>
+        <h2 id="assistant-title">Website assistant</h2>
+        <p>Answers come only from this website's help pages.</p>
+      </div>
+      <button class="assistant-close" type="button" aria-label="Close the assistant">×</button>
+    </header>
+    <div class="assistant-log" role="log" aria-live="polite">
+      <p class="assistant-intro">Ask how to use the control room, invoice extraction or the review workspace.</p>
+    </div>
+    <form class="assistant-form" data-async>
+      <label class="assistant-label" for="assistant-question">Your question</label>
+      <textarea id="assistant-question" name="question" rows="2" maxlength="{{ assistant_max_question }}" placeholder="For example: which columns must a monthly workbook have?"></textarea>
+      <div class="assistant-actions">
+        <button class="assistant-reset" type="button">New conversation</button>
+        <button class="assistant-send" type="submit">Send</button>
+      </div>
+    </form>
+  </section>
+  <button class="assistant-launcher" type="button" aria-expanded="false" aria-controls="assistant-panel"><span aria-hidden="true">?</span> Ask a question</button>
+</div>
+<script src="{{ url_for('static', filename='assistant.js') }}" defer></script>
