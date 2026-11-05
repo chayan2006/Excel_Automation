@@ -1,0 +1,51 @@
+{% extends 'workbooks/base.html' %}
+{% from 'workbooks/macros.html' import error_table %}
+{% block title %}Preview changes{% endblock %}
+{% block content %}
+<header class="operation-header">
+  <p class="eyebrow">CHECK BEFORE YOU APPLY</p>
+  <h1>Preview changes</h1>
+  <p class="lede">Review the proposed changes to Master.xlsx. Your live workbook and queued files have not been changed.</p>
+</header>
+<section class="insights" aria-label="Preview totals">
+  <div class="stats">
+    <div><small>Rows to add</small><strong>{{ preview.totals.inserted_count }}</strong></div>
+    <div><small>Rows to update</small><strong>{{ preview.totals.updated_count }}</strong></div>
+    <div><small>Unchanged rows</small><strong>{{ preview.totals.skipped_count }}</strong></div>
+    <div><small>Files with errors</small><strong class="{{ 'bad' if preview.totals.failed_count else '' }}">{{ preview.totals.failed_count }}</strong></div>
+  </div>
+</section>
+<p class="muted preview-note">Files are processed in the order below. If multiple files update the same record, each preview includes changes made by the preceding files. Up to 200 changed rows are shown per file; totals include every row.</p>
+{% for file in preview.files %}
+<section class="panel preview-file">
+  <div class="panel-heading"><h2>{{ file.file_name }}</h2><span class="status-badge {{ 'error' if file.status == 'failed' else 'success' }}">{{ 'Needs correction' if file.status == 'failed' else 'Ready' }}</span></div>
+  {% if file.status == 'failed' %}
+    <p class="muted">This file will not update the master. Correct it and upload it again, or continue to process the valid files and move this one to the errors folder.</p>
+    {{ error_table(file.errors) }}
+  {% else %}
+    <p class="muted">{{ file.result.inserted_count }} to add · {{ file.result.updated_count }} to update · {{ file.result.skipped_count }} unchanged</p>
+    {% if file.changes %}
+    <details open><summary>Show before and after values</summary>
+      <div class="table-scroll" tabindex="0" role="region" aria-label="Changes for {{ file.file_name }}">
+        <table class="data-table changes-table"><thead><tr><th scope="col">Action / record</th><th scope="col">Column</th><th scope="col">Current value</th><th scope="col">Proposed value</th></tr></thead>
+          <tbody>{% for change in file.changes %}{% for value in change['values'] %}
+            <tr><td>{% if loop.first %}<span class="change-kind">{{ change.kind }}</span><strong>{{ change.key }}</strong><small>Master row {{ change.row }}</small>{% endif %}</td><td>{{ value.column }}</td><td class="old-value">{{ value.before if value.before is not none and value.before != '' else '—' }}</td><td class="new-value">{{ value.after if value.after is not none and value.after != '' else '—' }}</td></tr>
+          {% endfor %}{% endfor %}</tbody>
+        </table>
+      </div>
+    </details>
+    {% if file.omitted %}<p class="muted">{{ file.omitted }} additional changed rows are included in the totals.</p>{% endif %}
+    {% else %}<p class="empty-state">This file has no changed records.</p>{% endif %}
+  {% endif %}
+</section>
+{% endfor %}
+<section class="confirm-band">
+  <div><h2>Ready to apply?</h2><p>{{ preview.totals.processed_count }} valid file(s) will be processed. Backups are created before each master update.</p>{% if preview.totals.failed_count %}<p class="warning-text">{{ preview.totals.failed_count }} invalid file(s) will move to the errors folder, with a downloadable error report.</p>{% endif %}</div>
+  <form action="{{ url_for('run_automation') }}" method="post" data-busy-label="Applying changes…">
+    <input type="hidden" name="csrf" value="{{ review_csrf_token() }}">
+    <input type="hidden" name="preview_token" value="{{ token }}">
+    <button class="button primary" type="submit">{{ 'Apply changes & process queue' if preview.totals.processed_count else 'Save error report & archive invalid files' }}</button>
+  </form>
+</section>
+<p class="muted">This preview expires after one hour. Changes to the master, queue or processing rules require a new preview.</p>
+{% endblock %}

@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  excel-automation:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: excel_automation_app
+    restart: unless-stopped
+    ports:
+      - "${PORT:-5050}:5050"
+    environment:
+      - PORT=5050
+      - EXCEL_AUTOMATION_SECRET=${EXCEL_AUTOMATION_SECRET:-change_this_to_a_secure_random_key_in_production}
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-1}
+      - GUNICORN_THREADS=${GUNICORN_THREADS:-4}
+      - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-120}
+    volumes:
+      # Persistent host directory mounts for data and configuration
+      - ./config:/app/config
+      - ./input:/app/input
+      - ./processed:/app/processed
+      - ./errors:/app/errors
+      - ./backups:/app/backups
+      - ./reports:/app/reports
+      - ./logs:/app/logs
+      - ./output:/app/output
+      - ./data:/app/data
+

@@ -1,0 +1,102 @@
+{% extends "review/base.html" %}
+{% block title %}{{ document.file_name }} · Review workspace{% endblock %}
+{% block body_class %}rv-doc{{ ' read-only' if document.read_only }}{% endblock %}
+
+{% block body %}
+<header class="rv-top">
+  <a class="rv-icon-btn" href="{{ boot.urls.list }}" title="Back to documents" aria-label="Back to documents">←</a>
+  <div class="rv-doc-title">
+    <h1 title="{{ document.file_name }}">{{ document.file_name }}</h1>
+    <p>
+      <span class="rv-status s-{{ document.status }}">{{ document.status_label }}</span>
+      <span id="rv-queue-name">{{ document.queue_name }}</span>
+      {% if document.vendor and document.vendor != 'Unknown' %}<span>{{ document.vendor }} template</span>{% elif document.vendor %}<span>No vendor template</span>{% endif %}
+      <span class="rv-doc-labels" id="rv-labels"></span>
+    </p>
+  </div>
+
+  {% if boot.position %}
+    <nav class="rv-pager" aria-label="Documents in this list">
+      {% if boot.urls.prev %}<a class="rv-icon-btn" href="{{ boot.urls.prev }}" title="Previous document ( [ )" aria-label="Previous document">‹</a>{% else %}<span class="rv-icon-btn disabled" aria-hidden="true">‹</span>{% endif %}
+      <span>{{ boot.position.index }} of {{ boot.position.total }}</span>
+      {% if boot.urls.next %}<a class="rv-icon-btn" href="{{ boot.urls.next }}" title="Next document ( ] )" aria-label="Next document">›</a>{% else %}<span class="rv-icon-btn disabled" aria-hidden="true">›</span>{% endif %}
+    </nav>
+  {% endif %}
+
+  <div class="rv-top-actions">
+    {% for action in ['restore', 'reopen', 'export', 'postpone', 'reject'] if action in document.actions %}
+      <button type="button" class="rv-btn" data-action="{{ action }}">{{ action_titles[action] }}</button>
+    {% endfor %}
+    <div class="rv-menu">
+      <button type="button" class="rv-btn rv-menu-toggle" aria-haspopup="true" aria-expanded="false">More <span aria-hidden="true">▾</span></button>
+      <div class="rv-menu-list" role="menu" hidden>
+        <a role="menuitem" href="{{ boot.urls.original }}" target="_blank" rel="noopener">Open original PDF</a>
+        <a role="menuitem" href="{{ boot.urls.original }}?download=1">Download original</a>
+        {% if 'move' in document.actions %}<button type="button" role="menuitem" data-action="move">Move to queue…</button>{% endif %}
+        {% if 'add_label' in document.actions %}<button type="button" role="menuitem" data-action="add_label">Add label…</button>{% endif %}
+        {% if 'reextract' in document.actions %}<button type="button" role="menuitem" data-action="reextract">Re-extract data…</button>{% endif %}
+        <button type="button" role="menuitem" data-command="shortcuts">Keyboard shortcuts</button>
+        {% if 'delete' in document.actions %}<button type="button" role="menuitem" class="danger" data-action="delete">Delete…</button>{% endif %}
+      </div>
+    </div>
+    {% if 'confirm' in document.actions %}
+      <button type="button" class="rv-btn rv-btn-primary" data-action="confirm" title="Confirm (Ctrl+Enter)">Confirm</button>
+    {% endif %}
+  </div>
+</header>
+
+<main class="rv-main">
+  <aside class="rv-side" id="rv-side" aria-label="Extracted data">
+    <div class="rv-tabs" role="tablist">
+      <button type="button" role="tab" id="tab-fields" aria-selected="true" aria-controls="panel-fields" data-tab="fields">Fields</button>
+      <button type="button" role="tab" id="tab-activity" aria-selected="false" aria-controls="panel-activity" data-tab="activity">Activity</button>
+      <button type="button" role="tab" id="tab-info" aria-selected="false" aria-controls="panel-info" data-tab="info">Info</button>
+    </div>
+    <section class="rv-panel" id="panel-fields" role="tabpanel" aria-labelledby="tab-fields" data-panel="fields">
+      <div class="rv-banner" id="rv-banner" hidden></div>
+      <div class="rv-summary" id="rv-summary"></div>
+      <ul class="rv-doc-messages" id="rv-doc-messages"></ul>
+      <form class="rv-fields" id="rv-fields" autocomplete="off" novalidate></form>
+    </section>
+    <section class="rv-panel" id="panel-activity" role="tabpanel" aria-labelledby="tab-activity" data-panel="activity" hidden>
+      <ol class="rv-activity" id="rv-activity"></ol>
+    </section>
+    <section class="rv-panel" id="panel-info" role="tabpanel" aria-labelledby="tab-info" data-panel="info" hidden>
+      <dl class="rv-info" id="rv-info"></dl>
+    </section>
+    <footer class="rv-side-foot">
+      <span class="rv-save-state" id="rv-save-state" aria-live="polite"></span>
+      {% if 'confirm' in document.actions %}
+        <button type="button" class="rv-btn rv-btn-primary rv-btn-wide" data-action="confirm">Confirm <kbd>Ctrl ⏎</kbd></button>
+      {% endif %}
+    </footer>
+  </aside>
+
+  <div class="rv-resizer" id="rv-resizer" role="separator" aria-orientation="vertical" aria-label="Resize the data panel" tabindex="0"></div>
+
+  <section class="rv-viewer" aria-label="Document">
+    <div class="rv-viewer-bar">
+      <button type="button" class="rv-icon-btn" id="rv-thumbs-toggle" title="Page thumbnails" aria-pressed="false">▤</button>
+      <label class="rv-page-jump">Page <input id="rv-page-input" type="number" min="1" value="1" inputmode="numeric"> of <span id="rv-page-total">0</span></label>
+      <div class="rv-zoom" role="group" aria-label="Zoom">
+        <button type="button" class="rv-icon-btn" data-zoom="out" title="Zoom out ( - )" aria-label="Zoom out">−</button>
+        <button type="button" class="rv-zoom-value" data-zoom="fit" id="rv-zoom-value" title="Fit to width ( 0 )">100%</button>
+        <button type="button" class="rv-icon-btn" data-zoom="in" title="Zoom in ( + )" aria-label="Zoom in">+</button>
+      </div>
+      <p class="rv-capture-hint" id="rv-capture-hint"></p>
+    </div>
+    <div class="rv-viewer-body">
+      <div class="rv-thumbs" id="rv-thumbs" hidden></div>
+      <div class="rv-pages" id="rv-pages"></div>
+    </div>
+    <div class="rv-importing" id="rv-importing" hidden>
+      <span class="rv-spinner" aria-hidden="true"></span>
+      <p>Extracting data from the document…</p>
+    </div>
+  </section>
+</main>
+
+<script type="application/json" id="rv-boot">{{ boot | tojson }}</script>
+{% endblock %}
+
+{% block scripts %}<script src="{{ url_for('static', filename='review-document.js') }}"></script>{% endblock %}

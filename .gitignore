@@ -1,0 +1,19 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables & secrets
+.env
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Mac / OS files
+.DS_Store
+
+# Temporary outputs & logs (keep directories tracked with .gitkeep if needed)
+*.log
+

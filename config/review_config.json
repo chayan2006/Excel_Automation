@@ -1,0 +1,24 @@
+{
+  "workspaces": [
+    {
+      "name": "Accounts payable",
+      "queues": [
+        {"id": "telecom", "name": "Telecom invoices"},
+        {"id": "proforma", "name": "Pro forma invoices"},
+        {"id": "tax-invoices", "name": "Tax invoices"},
+        {"id": "credit-notes", "name": "Credit notes"}
+      ]
+    }
+  ],
+  "default_queue": "telecom",
+  "schema_file": "review_schema.json",
+  "storage_dir": "output/review",
+  "accepted_extensions": [".pdf"],
+  "score_threshold": 0.9,
+  "automation_level": "never",
+  "max_scan_pages": 60,
+  "page_resolution": 150,
+  "list_columns": ["invoice_number", "invoice_date", "amount_total_tax", "amount_due", "vendor_name"],
+  "page_size": 50,
+  "default_reviewer": "Reviewer"
+}

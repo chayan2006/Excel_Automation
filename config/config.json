@@ -1,0 +1,30 @@
+{
+  "master_workbook": "Master.xlsx",
+  "sheet_name": "Monthly Data",
+  "sheet_candidates": ["Monthly Data", "Sheet1", "Data"],
+  "required_columns": [
+    "Employee ID",
+    "Name",
+    "Department",
+    "Salary",
+    "Date"
+  ],
+  "identifier_columns": ["Employee ID"],
+  "allowed_extensions": [".xlsx", ".xlsm"],
+  "filename_pattern": "^(?:[A-Za-z]+_\\d{4}|\\d{4}-\\d{2})\\.(?:xlsx|xlsm)$",
+  "column_aliases": {
+    "employee id": "Employee ID",
+    "employeeid": "Employee ID",
+    "name": "Name",
+    "department": "Department",
+    "salary": "Salary",
+    "date": "Date"
+  },
+  "business_rules": {
+    "update_columns": ["Department", "Salary", "Date"],
+    "duplicate_policy": "fail",
+    "skip_blank_rows": true,
+    "trim_strings": true,
+    "normalize_case": true
+  }
+}

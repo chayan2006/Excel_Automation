@@ -1,0 +1,24 @@
+{% extends 'workbooks/base.html' %}
+{% block title %}Restore master{% endblock %}
+{% block content %}
+<header class="operation-header">
+  <p class="eyebrow">WORKBOOK RECOVERY</p>
+  <h1>Restore a backup</h1>
+  <p class="lede">Review the selected workbook before making it your current master.</p>
+</header>
+<section class="panel">
+  <div class="panel-heading"><h2>{{ filename }}</h2><span class="file-mark">XLSX</span></div>
+  <p class="muted">Worksheets in this backup</p>
+  <div class="table-scroll"><table class="data-table"><thead><tr><th scope="col">Worksheet</th><th scope="col">Rows below header*</th></tr></thead><tbody>{% for sheet in sheets %}<tr><td>{{ sheet.name }}</td><td>{{ sheet.rows }}</td></tr>{% endfor %}</tbody></table></div>
+  <p class="muted">* Includes blank or formatted rows reported by Excel.</p>
+  <a class="text-link" href="{{ url_for('download_backup', filename=filename) }}">↓ Download this backup to inspect it</a>
+</section>
+<section class="confirm-band">
+  <div><h2>{{ 'Replace the current master' if master_exists else 'Recover the master workbook' }}</h2><p>{% if master_exists %}Your current master will be saved as a new backup first, so you can restore it later.{% else %}This backup will become Master.xlsx.{% endif %} Queued files and previous reports stay as they are.</p></div>
+  <form action="{{ url_for('restore_master', filename=filename) }}" method="post" data-busy-label="Restoring master…">
+    <input type="hidden" name="csrf" value="{{ review_csrf_token() }}">
+    <input type="hidden" name="restore_token" value="{{ token }}">
+    <button class="button primary" type="submit">Confirm restore</button>
+  </form>
+</section>
+{% endblock %}

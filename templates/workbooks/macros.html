@@ -1,0 +1,11 @@
+{% macro error_table(rows) %}
+<div class="table-scroll" tabindex="0" role="region" aria-label="Validation errors">
+  <table class="data-table error-table">
+    <thead><tr><th scope="col">File / location</th><th scope="col">Problem</th><th scope="col">How to fix it</th></tr></thead>
+    <tbody>{% for error in rows %}
+      <tr><td><strong>{{ error.filename }}</strong><small>{% if error.sheet %}{{ error.sheet }}{% endif %}{% if error.row %} · Row {{ error.row }}{% endif %}{% if error.column %} · {{ error.column }}{% endif %}</small></td>
+        <td>{{ error.error_message }}</td><td>{{ error.suggestion }}</td></tr>
+    {% endfor %}</tbody>
+  </table>
+</div>
+{% endmacro %}

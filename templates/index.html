@@ -1,0 +1,118 @@
+{% from 'workbooks/macros.html' import error_table %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Excel Control Room</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">OPERATIONS / WORKBOOKS</p>
+        <h1>Excel control room</h1>
+        <p class="lede">Load workbooks, extract telecom invoices, and generate clean Excel reports in one place.</p>
+      </div>
+      <div class="topbar-actions">
+        <div class="status-pill"><span></span> Local workspace</div>
+        <a class="review-link" href="{{ url_for('review.documents') }}">Review workspace <span>→</span></a>
+      </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <section class="messages" aria-live="polite">
+          {% for category, message in messages %}<div class="message {{ category }}">{{ message }}</div>{% endfor %}
+        </section>
+      {% endif %}
+    {% endwith %}
+
+    <nav class="section-nav" aria-label="Dashboard sections">
+      <a href="#workbooks">Workbooks</a><a href="#invoices">Invoices</a><a href="#run-history">Run history</a><a href="#backups">Backups</a>
+    </nav>
+    <section class="hero-grid" id="workbooks">
+      <article class="panel master-panel">
+        <div class="panel-heading"><div><span class="step">01</span><h2>Master workbook</h2></div><span class="file-mark">XLS</span></div>
+        <p class="muted">The live <strong>Master.xlsx</strong> file used for every update.</p>
+        <div class="master-state {{ 'ready' if master_exists else 'empty' }}">
+          <div class="state-icon">{{ '✓' if master_exists else '!' }}</div>
+          <div><strong>{{ 'Master ready' if master_exists else 'No master uploaded' }}</strong><small>{{ (master_size / 1024)|round(1) }} KB · {{ master_name if master_exists else 'Upload an Excel workbook to begin' }}</small></div>
+        </div>
+        <form action="{{ url_for('upload_master') }}" method="post" enctype="multipart/form-data" class="upload-form">
+          <label class="dropzone" for="master_file"><span class="upload-icon">↑</span><span><b>Choose a new master</b><small>.xlsx · current master is backed up</small></span><input id="master_file" name="master_file" type="file" accept=".xlsx" required></label>
+          <button class="button primary" type="submit">Upload master <span>→</span></button>
+        </form>
+        {% if master_exists %}<a class="text-link" href="{{ url_for('download_master') }}">↓ Download current master</a>{% endif %}
+      </article>
+
+      <article class="panel queue-panel">
+        <div class="panel-heading"><div><span class="step">02</span><h2>Processing queue</h2></div><span class="count">{{ queued_files|length }} queued</span></div>
+        <p class="muted">Add monthly or other supported workbooks. They will be validated before updating the master.</p>
+        <form action="{{ url_for('upload_files') }}" method="post" enctype="multipart/form-data" class="upload-form">
+          <label class="dropzone queue-drop" for="data_files"><span class="upload-icon">+</span><span><b>Choose files to process</b><small>Multiple .xlsx or .xlsm files supported</small></span><input id="data_files" name="data_files" type="file" accept=".xlsx,.xlsm" required multiple></label>
+          <button class="button secondary" type="submit">Add to queue <span>→</span></button>
+        </form>
+        {% if queued_files %}<label class="search-label" for="queue-search">Find a queued workbook</label><input type="search" id="queue-search" class="queue-search" placeholder="Search filenames…"><span id="queue-search-status" class="search-status" role="status"></span>{% endif %}
+        <div class="queue-list">
+          {% if queued_files %}{% for filename in queued_files %}<div class="queue-item" data-filename="{{ filename }}"><span class="mini-file">X</span><span>{{ filename }}</span><small>Queued</small></div>{% endfor %}{% else %}<div class="empty-queue">Your processing queue is empty.</div>{% endif %}
+        </div>
+      </article>
+    </section>
+
+    <section class="panel invoice-panel" id="invoices">
+      <div class="panel-heading"><div><span class="step">03</span><h2>Telecom invoice extraction</h2></div><span class="file-mark">PDF → XLSX</span></div>
+      <p class="muted">Upload native-text invoices from Airtel, Jio, Vodafone Idea, or another provider. The vendor template is detected automatically. To check every value against the PDF before it reaches Excel, use the <a class="inline-link" href="{{ url_for('review.documents') }}">review workspace</a>.</p>
+      <div class="invoice-columns">
+        <form action="{{ url_for('upload_invoices') }}" method="post" enctype="multipart/form-data" class="upload-form">
+          <label class="dropzone" for="invoice_files"><span class="upload-icon">+</span><span><b>Choose invoice PDFs</b><small>Multiple .pdf files supported</small></span><input id="invoice_files" name="invoice_files" type="file" accept=".pdf" required multiple></label>
+          <button class="button secondary" type="submit">Add invoices <span>→</span></button>
+        </form>
+        <div class="invoice-side">
+          <div class="invoice-count"><strong>{{ invoice_files|length }}</strong><span>invoice{{ '' if invoice_files|length == 1 else 's' }} waiting for extraction</span></div>
+          {% if invoice_files %}<div class="invoice-names">{% for filename in invoice_files %}<div><span class="mini-file pdf">P</span>{{ filename }}</div>{% endfor %}</div>{% else %}<div class="empty-queue">No invoice PDFs waiting.</div>{% endif %}
+          <form action="{{ url_for('extract_invoices') }}" method="post"><button class="button invoice-button" type="submit" {% if not invoice_files %}disabled{% endif %}>Extract to Excel <span>↗</span></button></form>
+          {% if latest_invoice_report %}<a class="text-link" href="{{ url_for('download_invoice_report', filename=latest_invoice_report) }}">↓ Download latest invoice report</a>{% endif %}
+        </div>
+      </div>
+    </section>
+
+    <section class="run-band">
+      <div><span class="step">04</span><div><h2>Check, then apply</h2><p>See exactly what will change before updating your master.</p></div></div>
+      <form action="{{ url_for('preview_automation') }}" method="post" data-busy-label="Preparing preview…"><input type="hidden" name="csrf" value="{{ review_csrf_token() }}"><button class="button run-button" type="submit" {% if not master_exists or not queued_files %}disabled{% endif %}>Preview changes <span>→</span></button></form>
+    </section>
+
+    <section class="insights">
+      <div class="section-label">LATEST RUN</div>
+      {% if latest_summary %}<div class="stats"><div><small>Files processed</small><strong>{{ latest_summary.processed_count }}</strong></div><div><small>Rows inserted</small><strong>{{ latest_summary.inserted_count }}</strong></div><div><small>Rows updated</small><strong>{{ latest_summary.updated_count }}</strong></div><div><small>Failed files</small><strong class="{{ 'bad' if latest_summary.failed_count else '' }}">{{ latest_summary.failed_count }}</strong></div></div><p class="run-meta">Run {{ latest_summary.run_id }} · Reports saved in <b>reports/</b></p>{% else %}<p class="muted">No runs yet. Your first summary will appear here.</p>{% endif %}
+    </section>
+
+    <section class="panel history-panel" id="run-history">
+      <div class="panel-heading"><div><span class="step">05</span><h2>Run history</h2></div><span class="count">Latest {{ history|length }}</span></div>
+      <p class="muted">Review previous results and download reports.</p>
+      {% if history %}<div class="table-scroll" tabindex="0" role="region" aria-label="Processing history"><table class="data-table"><thead><tr><th scope="col">Run</th><th scope="col">Processed / failed</th><th scope="col">Added / updated</th><th scope="col">Reports</th></tr></thead><tbody>
+      {% for run in history %}<tr><td><strong>{{ run.generated_at|default(run.run_id) }}</strong><small>{{ run.run_id }}</small></td><td>{{ run.processed_count }} / <span class="{{ 'bad' if run.failed_count else '' }}">{{ run.failed_count }}</span></td><td>{{ run.inserted_count }} / {{ run.updated_count }}</td><td class="table-links"><a href="{{ url_for('download_run_report', run_id=run.run_id, kind='summary') }}">Summary</a>{% if run.has_errors %}<a href="{{ url_for('dashboard', run=run.run_id, _anchor='errors') }}">View errors</a><a href="{{ url_for('download_run_report', run_id=run.run_id, kind='errors') }}">CSV</a>{% endif %}</td></tr>{% endfor %}
+      </tbody></table></div>{% else %}<p class="empty-state">Your first completed run will appear here.</p>{% endif %}
+    </section>
+
+    <section class="panel errors-panel" id="errors">
+      <div class="panel-heading"><h2>Errors & corrections</h2>{% if selected_run %}<span class="status-badge {{ 'error' if errors.count else 'success' }}">{{ errors.count }} issue{{ '' if errors.count == 1 else 's' }}</span>{% endif %}</div>
+      {% if selected_run %}<p class="muted">Run {{ selected_run }}. Correct the source workbook and upload it again; failed files are kept in the errors folder.</p>
+        {% if errors.rows %}{{ error_table(errors.rows) }}{% if errors.count > errors.rows|length %}<p class="muted">Showing the first {{ errors.rows|length }} of {{ errors.count }} issues. Download the CSV for the complete list.</p>{% endif %}
+        {% elif errors.available %}<p class="empty-state success-text">No validation errors in this run.</p>{% else %}<p class="empty-state">The error report for this run is unavailable.</p>{% endif %}
+        {% if errors.available %}<a class="text-link" href="{{ url_for('download_run_report', run_id=selected_run, kind='errors') }}">↓ Download full error report</a>{% endif %}
+      {% else %}<p class="empty-state">After processing, problems will appear here with the file, row, column and suggested fix. Preview also checks for errors before you apply changes.</p>{% endif %}
+    </section>
+
+    <section class="panel backups-panel" id="backups">
+      <div class="panel-heading"><div><span class="step">06</span><h2>Master backups</h2></div><span class="count">{{ backups|length }} saved</span></div>
+      <p class="muted">Recover an earlier master. Every restore saves the current version first.</p>
+      {% if backups %}<div class="table-scroll backup-scroll" tabindex="0" role="region" aria-label="Available master backups"><table class="data-table"><thead><tr><th scope="col">Saved</th><th scope="col">Workbook</th><th scope="col">Size</th><th scope="col">Actions</th></tr></thead><tbody>
+        {% for backup in backups %}<tr><td>{{ backup.created }}</td><td>{{ backup.name }}</td><td>{{ (backup.size / 1024)|round(1) }} KB</td><td class="table-links"><a href="{{ url_for('download_backup', filename=backup.name) }}">Download</a><a class="restore-link" href="{{ url_for('restore_master', filename=backup.name) }}">Review restore →</a></td></tr>{% endfor %}
+      </tbody></table></div>{% else %}<p class="empty-state">Backups appear here when you replace or update an existing master.</p>{% endif %}
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='dashboard.js') }}" defer></script>
+</body>
+</html>

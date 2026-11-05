@@ -1,0 +1,207 @@
+{% extends "review/base.html" %}
+{% block title %}{{ tab_label }} · {{ queue_title }} · Review workspace{% endblock %}
+{% block body_class %}rv-dash{% endblock %}
+
+{% macro list_hidden(args) -%}
+  {% for key, value in list_query(args).items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+{%- endmacro %}
+
+{% macro sort_header(key, label, class_name='') -%}
+  {% set active = args.sort == key %}
+  {% set next_dir = 'asc' if active and args.dir == 'desc' else 'desc' %}
+  <th class="{{ class_name }}" {% if active %}aria-sort="{{ 'ascending' if args.dir == 'asc' else 'descending' }}"{% endif %}>
+    <a href="{{ url_for('review.documents', **list_query(args, sort=key, dir=next_dir)) }}">{{ label }}{% if active %}<span class="sort-arrow" aria-hidden="true">{{ '↑' if args.dir == 'asc' else '↓' }}</span>{% endif %}</a>
+  </th>
+{%- endmacro %}
+
+{% block body %}
+<aside class="dash-nav">
+  <a class="dash-brand" href="{{ url_for('review.documents') }}">
+    <span class="dash-logo" aria-hidden="true">✓</span>
+    <span><b>Review workspace</b><small>Invoice data capture</small></span>
+  </a>
+  <nav class="dash-queues" aria-label="Queues">
+    <a class="dash-queue{{ ' active' if args.queue == 'all' }}" href="{{ url_for('review.documents', **list_query(args, queue='all', q='', label='')) }}">
+      <span>All documents</span>{% if counts['all']['to_review'] %}<span class="dash-count">{{ counts['all']['to_review'] }}</span>{% endif %}
+    </a>
+    {% for space in ws.workspaces %}
+      <p class="dash-space">{{ space.name }}</p>
+      {% for queue in space.queues %}
+        <a class="dash-queue{{ ' active' if args.queue == queue.id }}" href="{{ url_for('review.documents', **list_query(args, queue=queue.id, q='', label='')) }}">
+          <span>{{ queue.name }}</span>{% if counts[queue.id]['to_review'] %}<span class="dash-count">{{ counts[queue.id]['to_review'] }}</span>{% endif %}
+        </a>
+      {% endfor %}
+    {% endfor %}
+  </nav>
+  <div class="dash-nav-foot">
+    <form class="dash-reviewer" method="post" action="{{ url_for('review.set_reviewer') }}">
+      <label for="reviewer-name">Reviewing as</label>
+      <input id="reviewer-name" name="name" value="{{ reviewer }}" maxlength="60" autocomplete="name">
+      <input type="hidden" name="next" value="{{ request.full_path }}">
+      <input type="hidden" name="csrf" value="{{ review_csrf_token() }}">
+    </form>
+    <a class="dash-back" href="{{ url_for('dashboard') }}">← Excel control room</a>
+  </div>
+</aside>
+
+<main class="dash-main">
+  <header class="dash-head">
+    <div>
+      <p class="dash-eyebrow">{{ queue_workspace or 'All queues' }}</p>
+      <h1>{{ queue_title }}</h1>
+    </div>
+    <div class="dash-head-actions">
+      {% if start_url %}<a class="rv-btn" href="{{ start_url }}">Start reviewing <span aria-hidden="true">→</span></a>{% endif %}
+      <form id="upload-form" method="post" action="{{ url_for('review.upload') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf" value="{{ review_csrf_token() }}">
+        {{ list_hidden(args) }}
+        {% if args.queue == 'all' %}
+          <label class="visually-hidden" for="upload-queue">Upload to queue</label>
+          <select id="upload-queue" name="queue" class="rv-select">
+            {% for queue_id, name in ws.queues.items() %}<option value="{{ queue_id }}"{{ ' selected' if queue_id == ws.default_queue }}>{{ name }}</option>{% endfor %}
+          </select>
+        {% else %}
+          <input type="hidden" name="queue" value="{{ args.queue }}">
+        {% endif %}
+        <label class="rv-btn rv-btn-primary" for="upload-input" tabindex="0" role="button">Upload documents</label>
+        <input id="upload-input" class="visually-hidden" type="file" name="documents" accept="{{ ws.accepted_extensions | join(',') }}" multiple>
+      </form>
+    </div>
+  </header>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <section class="dash-messages" aria-live="polite">
+        {% for category, message in messages %}
+          {% if category == 'export' %}
+            <div class="rv-flash success">Export ready: <a href="{{ url_for('review.download_export', filename=message) }}">{{ message }}</a></div>
+          {% else %}
+            <div class="rv-flash {{ category }}">{{ message }}</div>
+          {% endif %}
+        {% endfor %}
+      </section>
+    {% endif %}
+  {% endwith %}
+
+  <nav class="dash-tabs" aria-label="Status">
+    {% for key, label in tabs %}
+      <a class="dash-tab{{ ' active' if args.tab == key }}" href="{{ url_for('review.documents', **list_query(args, tab=key)) }}"{% if args.tab == key %} aria-current="page"{% endif %}>
+        {{ label }} <span>{{ counts[args.queue][key] }}</span>
+      </a>
+    {% endfor %}
+  </nav>
+
+  <div class="dash-toolbar">
+    <form class="dash-search" method="get" action="{{ url_for('review.documents') }}" role="search">
+      {% for key, value in list_query(args, q='').items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+      <input type="search" name="q" value="{{ args.q }}" placeholder="Search file names and values" aria-label="Search documents" id="dash-search">
+    </form>
+    {% if labels %}
+      <div class="dash-labels" aria-label="Filter by label">
+        {% for label in labels %}
+          {% if args.label == label %}
+            <a class="rv-label active" href="{{ url_for('review.documents', **list_query(args, label='')) }}" title="Clear label filter">{{ label }} ×</a>
+          {% else %}
+            <a class="rv-label" href="{{ url_for('review.documents', **list_query(args, label=label)) }}">{{ label }}</a>
+          {% endif %}
+        {% endfor %}
+      </div>
+    {% endif %}
+    <p class="dash-total">{{ total }} document{{ '' if total == 1 else 's' }}</p>
+  </div>
+
+  <form id="bulk-form" method="post" action="{{ url_for('review.bulk') }}">
+    <input type="hidden" name="csrf" value="{{ review_csrf_token() }}">
+    {{ list_hidden(args) }}
+    <input type="hidden" name="action" value="">
+    <input type="hidden" name="note" value="">
+    <input type="hidden" name="label" value="">
+    <input type="hidden" name="target_queue" value="">
+
+    <div class="dash-bulk" id="bulk-bar" hidden>
+      <strong><span id="bulk-count">0</span> selected</strong>
+      {% for action, title in bulk_actions %}
+        <button type="button" class="rv-btn rv-btn-small{{ ' rv-btn-danger' if action == 'delete' }}" data-bulk="{{ action }}">{{ title }}</button>
+      {% endfor %}
+      <button type="button" class="rv-link" id="bulk-clear">Clear selection</button>
+    </div>
+
+    <div class="dash-table-wrap">
+      <table class="dash-table">
+        <thead>
+          <tr>
+            <th class="col-check"><input type="checkbox" id="select-all" aria-label="Select all documents on this page"{{ ' disabled' if not rows }}></th>
+            {{ sort_header('status', 'Status') }}
+            {{ sort_header('file_name', 'Document', 'col-file') }}
+            <th>Details</th>
+            {% if show_labels %}<th>Labels</th>{% endif %}
+            {% for column in ws.list_columns %}{{ sort_header(column.id, column.label, 'num' if column.type == 'number' else '') }}{% endfor %}
+            {{ sort_header(stamp[0], stamp[2]) }}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            {% set href = url_for('review.document', document_id=row.id, **list_query(args)) %}
+            <tr class="dash-row" data-href="{{ href }}" data-status="{{ row.status }}">
+              <td class="col-check"><input type="checkbox" name="ids" value="{{ row.id }}" aria-label="Select {{ row.file_name }}"></td>
+              <td><span class="rv-status s-{{ row.status }}">{{ row.status_label }}</span></td>
+              <td class="col-file">
+                <a href="{{ href }}">{{ row.file_name }}</a>
+                {% if args.queue == 'all' %}<small>{{ row.queue_name }}</small>{% endif %}
+              </td>
+              <td class="col-details">
+                {% if row.status == 'importing' %}
+                  <span class="rv-spinner rv-spinner-small" aria-hidden="true"></span> Extracting…
+                {% else %}
+                  <span class="dash-pages">{{ row.page_count }} page{{ '' if row.page_count == 1 else 's' }}</span>
+                  {% if row.automated %}<span class="rv-badge ok">Automated</span>{% endif %}
+                  {% if row.to_check %}<span class="rv-badge review">{{ row.to_check }} to check</span>{% endif %}
+                  {% if row.errors %}<span class="rv-badge error">{{ row.errors }} error{{ '' if row.errors == 1 else 's' }}</span>{% endif %}
+                  {% if row.warnings %}<span class="rv-badge warn">{{ row.warnings }} warning{{ '' if row.warnings == 1 else 's' }}</span>{% endif %}
+                  {% if not row.has_text %}<span class="rv-badge">Scanned</span>{% endif %}
+                  {% if row.note %}<span class="rv-badge" title="{{ row.note }}">Note</span>{% endif %}
+                {% endif %}
+              </td>
+              {% if show_labels %}<td>{% for label in row.labels %}<span class="rv-label">{{ label }}</span>{% endfor %}</td>{% endif %}
+              {% for column in ws.list_columns %}
+                <td class="{{ 'num' if column.type == 'number' }}">{{ row.cells[column.id] | review_value(column) }}</td>
+              {% endfor %}
+              <td class="col-stamp">{{ row[stamp[0]] | review_stamp }}<small>{{ row[stamp[1]] or '' }}</small></td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="{{ 5 + ws.list_columns | length }}" class="dash-empty">
+                {% if args.q or args.label %}
+                  <strong>No documents match these filters.</strong>
+                  <a href="{{ url_for('review.documents', **list_query(args, q='', label='')) }}">Clear the filters</a>
+                {% elif args.tab == 'to_review' %}
+                  <strong>Nothing to review.</strong>
+                  Upload PDF invoices with the button above, or drop them anywhere on this page.
+                {% else %}
+                  <strong>No {{ tab_label | lower }} documents{{ ' in this queue' if args.queue != 'all' }}.</strong>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </form>
+
+  {% if page_count > 1 %}
+    <nav class="dash-pager" aria-label="Pages">
+      <span>{{ (page - 1) * page_size + 1 }}–{{ [page * page_size, total] | min }} of {{ total }}</span>
+      {% if page > 1 %}<a class="rv-btn rv-btn-small" href="{{ url_for('review.documents', page=page - 1, **list_query(args)) }}">← Previous</a>{% endif %}
+      {% if page < page_count %}<a class="rv-btn rv-btn-small" href="{{ url_for('review.documents', page=page + 1, **list_query(args)) }}">Next →</a>{% endif %}
+    </nav>
+  {% endif %}
+
+  <div class="dash-drop" id="drop-overlay" hidden>
+    <div><b>Drop PDFs to upload</b><span>They go to {{ ws.queues.get(args.queue) or 'the queue selected next to the upload button' }}.</span></div>
+  </div>
+</main>
+
+<script type="application/json" id="dash-data">{{ {"queues": ws.queues, "labels": labels, "currentQueue": args.queue} | tojson }}</script>
+{% endblock %}
+
+{% block scripts %}<script src="{{ url_for('static', filename='review-dashboard.js') }}"></script>{% endblock %}

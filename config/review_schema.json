@@ -1,0 +1,117 @@
+{
+  "name": "Telecom invoice",
+  "sections": [
+    {
+      "id": "basic_info",
+      "label": "Basic Information",
+      "fields": [
+        {"id": "invoice_number", "label": "Bill Number", "type": "string", "required": true},
+        {"id": "invoice_date", "label": "Bill Date", "type": "date", "required": true},
+        {"id": "billing_period", "label": "Bill Period", "type": "string"},
+        {"id": "due_date", "label": "Pay By", "type": "string", "description": "Due date as printed on the bill, for example 'immediately'."},
+        {"id": "document_type", "label": "Document Type", "type": "enum", "options": ["Tax Invoice", "Credit Note", "Debit Note", "Pro Forma Invoice", "Receipt", "Other"]},
+        {"id": "irn", "label": "IRN", "type": "string", "hidden": true, "description": "E-invoice reference number."}
+      ]
+    },
+    {
+      "id": "payment_info",
+      "label": "Account & Payment",
+      "fields": [
+        {"id": "account_number", "label": "Account Number", "type": "string", "required": true, "description": "Relationship or customer account number."},
+        {"id": "place_of_supply", "label": "Place of Supply", "type": "string"},
+        {"id": "vendor_bank_account", "label": "Vendor Bank Account", "type": "string", "hidden": true},
+        {"id": "vendor_ifsc", "label": "Vendor IFSC", "type": "string", "hidden": true}
+      ]
+    },
+    {
+      "id": "totals",
+      "label": "Totals and Subtotals",
+      "fields": [
+        {"id": "previous_balance", "label": "Previous Balance", "type": "number", "hidden": true},
+        {"id": "payments_received", "label": "Payments Received", "type": "number", "hidden": true},
+        {"id": "adjustments", "label": "Adjustments", "type": "number", "hidden": true},
+        {"id": "amount_total_base", "label": "Subtotal", "type": "number", "description": "Taxable value before GST."},
+        {"id": "amount_total_tax", "label": "Total Tax", "type": "number", "description": "Sum of all GST on this bill."},
+        {"id": "amount_total", "label": "Bill Total", "type": "number", "description": "This bill's charges including tax."},
+        {"id": "amount_due", "label": "Amount Due", "type": "number", "required": true, "description": "Amount to pay, including any previous balance."},
+        {"id": "currency", "label": "Currency", "type": "enum", "options": ["INR", "USD", "EUR", "GBP"], "default": "INR"},
+        {
+          "id": "tax_details",
+          "label": "Tax Breakdown",
+          "type": "table",
+          "columns": [
+            {"id": "tax_type", "label": "Tax", "type": "enum", "options": ["CGST", "SGST", "UTGST", "IGST", "Cess"]},
+            {"id": "hsn", "label": "HSN/SAC", "type": "string"},
+            {"id": "rate", "label": "Rate %", "type": "number"},
+            {"id": "base", "label": "Taxable Value", "type": "number"},
+            {"id": "amount", "label": "Tax Amount", "type": "number"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vendor_customer",
+      "label": "Vendor & Customer",
+      "fields": [
+        {"id": "vendor_name", "label": "Vendor Name", "type": "string", "required": true},
+        {"id": "vendor_gstin", "label": "Vendor GSTIN", "type": "string", "format": "gstin"},
+        {"id": "vendor_pan", "label": "Vendor PAN", "type": "string", "hidden": true},
+        {"id": "customer_name", "label": "Customer Name", "type": "string"},
+        {"id": "customer_gstin", "label": "Customer GSTIN", "type": "string", "format": "gstin"},
+        {"id": "customer_address", "label": "Customer Address", "type": "string", "multiline": true}
+      ]
+    },
+    {
+      "id": "line_items_section",
+      "label": "Line Items",
+      "fields": [
+        {
+          "id": "line_items",
+          "label": "Line Items",
+          "type": "table",
+          "columns": [
+            {"id": "description", "label": "Description", "type": "string"},
+            {"id": "amount", "label": "Amount", "type": "number"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "other",
+      "label": "Other",
+      "fields": [
+        {"id": "notes", "label": "Internal Notes", "type": "string", "multiline": true, "manual": true}
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "type": "sum",
+      "fields": ["amount_total_base", "amount_total_tax"],
+      "equals": "amount_total",
+      "message": "Subtotal + Total Tax does not match the Bill Total."
+    },
+    {
+      "type": "sum",
+      "fields": ["previous_balance", "-payments_received", "-adjustments", "amount_total"],
+      "equals": "amount_due",
+      "message": "Previous balance - payments - adjustments + Bill Total does not match the Amount Due."
+    },
+    {
+      "type": "table_sum",
+      "table": "tax_details",
+      "column": "amount",
+      "equals": "amount_total_tax",
+      "path": "tax_details",
+      "message": "Tax breakdown rows do not add up to the Total Tax."
+    },
+    {
+      "type": "table_sum",
+      "table": "line_items",
+      "column": "amount",
+      "equals": "amount_total_base",
+      "path": "line_items",
+      "message": "Line items do not add up to the Subtotal."
+    }
+  ]
+}
