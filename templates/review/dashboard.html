@@ -34,12 +34,6 @@
     {% endfor %}
   </nav>
   <div class="dash-nav-foot">
-    <form class="dash-reviewer" method="post" action="{{ url_for('logout') }}">
-      <span class="dash-reviewer-label">Signed in as</span>
-      <span class="dash-reviewer-name">{{ reviewer }}</span>
-      <input type="hidden" name="csrf" value="{{ review_csrf_token() }}">
-      <button type="submit">Sign out</button>
-    </form>
     <a class="dash-back" href="{{ url_for('dashboard') }}">← Excel control room</a>
   </div>
 </aside>

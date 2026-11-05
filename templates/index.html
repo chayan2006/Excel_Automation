@@ -18,11 +18,6 @@
       <div class="topbar-actions">
         <div class="status-pill"><span></span> Local workspace</div>
         <a class="review-link" href="{{ url_for('review.documents') }}">Review workspace <span>→</span></a>
-        <form class="account" action="{{ url_for('logout') }}" method="post" data-busy-label="Signing out…">
-          <span>Signed in as <b>{{ g.user.name }}</b></span>
-          <input type="hidden" name="csrf" value="{{ review_csrf_token() }}">
-          <button type="submit">Sign out</button>
-        </form>
       </div>
     </header>
 

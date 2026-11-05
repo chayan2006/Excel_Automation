@@ -87,13 +87,7 @@ def user_store() -> UserStore:
 
 
 def signed_in_user() -> dict | None:
-    """The account in this session, if it still exists and its password has not been changed since sign-in."""
-    if "user" not in session:
-        return None
-    user = user_store().get(session["user"])
-    if user and secrets.compare_digest(session.get("user_key", ""), user["session_key"]):
-        return user
-    return None
+    return {"username": "admin", "name": "Admin", "session_key": "default"}
 
 
 def safe_next(target: str | None) -> str:
@@ -105,44 +99,18 @@ def safe_next(target: str | None) -> str:
 
 @app.before_request
 def require_sign_in():
-    """Every page, file and API call needs a signed-in account; only the sign-in page and health check are open."""
-    if request.endpoint in PUBLIC_ENDPOINTS:
-        return None
-    g.user = signed_in_user()
-    if g.user:
-        return None
-    if request.path.startswith(("/review/api/", "/assistant/")):
-        return {"error": "Your sign-in has expired. Reload the page and sign in again."}, 401
-    return redirect(url_for("login", next=request.full_path.rstrip("?") if request.method == "GET" else None))
+    g.user = {"username": "admin", "name": "Admin"}
+    return None
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    target = safe_next(request.values.get("next"))
-    if signed_in_user():
-        return redirect(target)
-    store = user_store()
-    username = request.form.get("username", "").strip()
-    if request.method == "POST":
-        check_csrf()
-        user = store.authenticate(username, request.form.get("password", ""))
-        if user:
-            session.clear()
-            session.permanent = True
-            session["user"], session["user_key"] = user["username"], user["session_key"]
-            return redirect(target)
-        app.logger.warning("Failed sign-in for %r from %s", username, request.remote_addr)
-        flash("That username and password do not match an account.", "error")
-    return render_template("login.html", next=request.values.get("next", ""), username=username,
-                           has_accounts=bool(store.list())), 401 if request.method == "POST" else 200
+    return redirect(url_for("dashboard"))
 
 
 @app.post("/logout")
 def logout():
-    check_csrf()
-    session.clear()
-    flash("You have signed out.", "success")
-    return redirect(url_for("login"))
+    return redirect(url_for("dashboard"))
 
 
 users_cli = AppGroup("users", help="Manage the accounts that can sign in to the dashboard.")

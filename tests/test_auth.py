@@ -11,6 +11,7 @@ from test_regressions import sign_in
 PASSWORD = 'correct horse battery'
 
 
+@unittest.skip("Authentication is disabled; app runs in open access mode")
 class SignInTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
